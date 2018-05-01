@@ -1,0 +1,325 @@
+---
+title: "Pre-Course Survey Analysis"
+author: "Rob Chavez"
+date: "April 4, 2018"
+output:
+  html_document:
+    highlight: espresso
+    theme: spacelab
+---
+
+The code below will use the pre-course survey responses to demonstrate some features of Rmarkdown and give a small sample of examples of topics we will cover this term. 
+
+##  Load data and packages 
+First I am going to download the data set from a file I have saved on Dropbox. 
+Note: I had to modify the end of the shared link from Dropbox from 'dl=0' to 'dl=1' to make it directly downloadable and able to be imported into R with the URL. 
+```{r  message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(reshape2)
+library(RColorBrewer)
+
+# load data
+survey <- read.csv("https://www.dropbox.com/s/bslie2try1za9do/PSY%20607%20Data%20Science%20survey.csv?dl=1", stringsAsFactors = FALSE)
+
+```
+
+
+## Modify the data frame
+The download data from Google Forums has long messy variable names and responses, doesn't have subject identifiers, and is generally a bit of a mess. The code below will clean them up a bit, add some additional information, and drop unnecessary data. 
+
+### Clean up
+The code below does some minor additions an clean up to the data frame and prints some results. First I create a subject ID and add it to the data frame. Next, I want to fill in the missing values with NAs. To do this I define a custom function to do this within a single vector then I use the 'apply' command to use it on all of the columns in the data frame. Finally, the last step renames the messy variables for easier use.
+```{r}
+# create subject ID
+survey$ID <- as.factor(1:length(survey[,1]))
+
+# move ID columns to front
+survey <- survey %>% select(ID,everything())
+
+# make blanks NA   
+  # (note: this could have been done within the read.csv() command more easily)
+make_na <- function(x){ifelse(x == "", NA, x)}  # custom function to make NAs within a vector
+survey_na <- apply(survey,2,make_na)
+survey_na <- as.data.frame(survey_na)
+
+# rename columns and drop the "Any related experience" question column
+survey_newcol <- survey_na %>% 
+  rename(topics = Which.of.the.following.topics.would.you.be.most.interested.in.covering.,
+    r_experence = Experience.with.R..In.general..how.much.experience.do.you.have.using.R.., 
+         r_prof_peers = Proficiency.in.R..Compared.to.your.fellow.graduate.student.peers.at.UO..how.would.you.rate.your.skill.level.using.R.., 
+         r_prof_outside = Proficiency.in.R..Compared.to.others.you.know.about.in.psychology.outside.of.UO..how.would.you.rate.your.skill.level.using.R..,
+         python_exp = Experience.with.other.languages...How.much.experience.do.you.have.using.Python..,
+         matlab_exp = Experience.with.other.languages...How.much.experience.do.you.have.using.Matlab..,
+         julia_exp = Experience.with.other.languages...How.much.experience.do.you.have.using.Julia..,
+         cmdline_exp = Experience.with.other.languages...How.much.experience.do.you.have.with.general.command.line.use..e.g..unix.linux.terminal..Windows.command.prompt...,
+         shscript_exp = Experience.with.other.languages...How.much.experience.do.you.have.with.shell.scripting..e.g..bash..tcsh..sh...) %>% 
+  select(-If.applicable..please.write.in.any.other.related.experience.you.have.that.you.feel.might.be.informative..)
+
+```
+
+
+### Subset into multiple data frames
+Although it is possible to lug around the full data frame for every analysis, it is often helpful to subset a data frame for particular analyses or for generating specific plots. The code below will break up the main data frame into two smaller ones that we can work with individually later.
+
+```{r}
+# make data frame for topics questions
+topics_df <- survey_newcol %>% select(ID, topics)
+
+
+# make data frame for experience and proficiency questions
+exp_df <- survey_newcol %>% select(-Timestamp, -topics)
+
+```
+
+## The topics data
+In the code below, I'm going to break up the topic data into meaningful components and then plot the results. Because the topic responses are all nested within single cells, it is going to require some extra work to get this data into a useful format. Some of this might be a little roundabout, but it works and I did it quickly (your code doesn't have to be optimized to work!). 
+```{r warning=FALSE}
+# split string by ';'
+topic_split <- str_split(topics_df$topics,';',simplify = TRUE) %>% as.data.frame()
+
+# bind split string variable to data
+topics_df <- bind_cols(topics_df,topic_split) %>% select(-topics)
+
+# convert to long format
+topics_df_long <- melt(topics_df, id.vars = "ID", value.name = 'topic')
+
+# drop missing values
+topics_df_long <- topics_df_long %>% filter(topic != "")
+
+# convert data to counts to tally votes
+topics_vote <- topics_df_long %>% count(topic)
+
+```
+
+### Plot votes for topics 
+The code below will generate a plot of the number of votes for each topic. 
+```{r}
+# basic plot of topic votes
+ggplot(topics_vote, aes(topic, n)) + geom_bar(stat = 'identity')
+```
+
+The plot above is usually fine for a quick look. In this case, however, you can't read the labels and is generally as aesthetically pleasing as seeing my own reflection (yuk). Let's make another, more beautiful one. The plot below will sort the bars from most voted to least voted, angle the axis labels for easier reading, apply a new theme and color scheme (just for fun), and make some other minor adjustments. In my opinion, this plot is not only more visually appealing but is also easier to understand the information being conveyed. 
+
+I've included some extra comments for clarification of what each step is doing.
+```{r fig.height=8,fig.width=8}
+# create color name vector for plot
+colors <- colorRampPalette(c('lightsteelblue4','gray98'))(12)
+
+# plot
+ggplot(topics_vote, 
+       aes(reorder(topic,-n), n,                              # reorder topic by decending count (i.e. -n)
+           fill=reorder(topic,-n))) +                         # add fill aesthetic for colors
+  geom_bar(stat = 'identity',color='black') +                 # set the bars and add black outline
+  geom_hline(yintercept = 0, size=1) +                        # add black line at the bottom
+  labs(x="Topic",y="Count") +                                 # rename the major axis labels
+  scale_y_continuous(breaks=seq(2,16,2)) +                    # change the number and spacing of y-axis ticks
+  theme_minimal() +                                           # change gray theme to minimal
+  scale_fill_manual(values = colors) +                        # apply custom colors from above
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),  # angle axis text
+        legend.position = 'none')                             # remove superfluous legend
+  
+```
+
+\
+Given these results, I have a good idea of what to cover. We need to cover 9 sections for each of the remaining weeks. Although general R programming was among the lowest, I am going to insist we cover it (it is essential, and will be helpful for the people with less experience). I also think text analysis is important so I might insist on that too (unless there are strong opinions otherwise or better ideas). Below is a table of what topics I've decided on, and the rest we will take a vote. (For the person who is interested in ordering factor levels, don't worry; it will be covered several times.) 
+
+| Will cover for sure       |  Will take a vote      
+| ------------------------- | ------------------------------------- |
+| General programming in R  | Functions and functional programming  |  
+| Data munging/wrangling    | Package creation                      |  
+| Data visualization        | Web scraping                          |  
+| Basic machine learning    | Python basics                         |  
+| Basic network analysis    | Shiny apps, D3, plotly                |  
+| Advanced R programming    |                                       |  
+| Text processing           |                                       |  
+|                           |                                       |
+
+
+## Experience and proficiency in R data
+Now that we have a sense of the topics people want to cover, let's look at the experience data. 
+
+### Experience
+I'll start with the experience and proficiency in R data.
+```{r fig.height=4, fig.width=4}
+# subset to experience question and create count data frame for plotting
+r_exp_df <- exp_df %>% select(r_experence) %>% count(r_experence)
+
+
+# recode responses for cleaner plotting
+r_exp_df$r_experence <- as.character(r_exp_df$r_experence)
+r_exp_df$r_experence <- ifelse(r_exp_df$r_experence=="I've have experience using it for basic analyses (e.g from a stats class).", "average", r_exp_df$r_experence)
+
+r_exp_df$r_experence <- ifelse(r_exp_df$r_experence=="I use it for most of my analyses but sometimes have to use another program when I don't know how to do something in R.", "above average", r_exp_df$r_experence)
+
+r_exp_df$r_experence <- ifelse(r_exp_df$r_experence=="I use it regularly for essentially all of my statistical analyses and/or other tasks.", "very experienced", r_exp_df$r_experence)
+
+
+# fill in missing responses and add to data frame for plotting
+missing_df <- data.frame(r_experence = c("no experience", "below average"), n = c(0,0))
+
+r_exp_df <- rbind(r_exp_df,missing_df)
+
+
+# order factor levels
+r_exp_df$r_experence <- factor(r_exp_df$r_experence, 
+  levels = c("no experience", "below average", "average", "above average", "very experienced"))
+
+```
+
+Now we can generate a nice plot.
+```{r}
+# plot 
+colors <- brewer.pal(5, 'RdYlGn')
+
+ggplot(r_exp_df,aes(r_experence, n, fill=r_experence)) + 
+  geom_bar(stat = 'identity', color='black') +
+  geom_hline(yintercept = 0, size=1) +                        
+  labs(x=NULL, y="Rating", title="Experience in R") +                                
+  scale_y_continuous(breaks=seq(2,8,2)) +                    
+  theme_minimal() +                                           
+  scale_fill_manual(values = colors, na.value= 'gray50' ) +                        
+  theme(axis.text.x = element_text(size = 7),  
+        legend.position = 'none')  
+
+
+```
+
+### Proficiency
+For the proficiency in R data, we have do to a bit of wrangling to get the two measures into a clean, single plot format.
+```{r}
+# subset to prociciency questions and create count data frame for plotting
+prof_df <- exp_df %>% select(r_prof_peers,r_prof_outside)
+
+# transpose data frame then melt and relabel
+prof_df <- melt(t(prof_df),varnames = c("measure","ID"), value.name = 'rating')
+
+# calculate counts
+prof_counts <- prof_df %>% 
+  group_by(measure) %>% 
+  count(rating)
+
+# recode measures for plotting 
+prof_counts$measure <- ifelse(prof_counts$measure == "r_prof_peers", "UO peers", "outside UO" )
+
+# order factor labels 
+prof_counts$rating <- factor(prof_counts$rating, 
+                             levels = c("Among the least proficient",
+                                        "Slightly below average",
+                                        "Average",
+                                        "Slightly above average",
+                                        "Among the most proficient"))
+```
+
+Here's the plot.
+```{r}
+# plot
+colors <- brewer.pal(5, 'RdYlGn')
+
+ggplot(prof_counts,aes(rating, n, fill=rating)) + 
+  geom_bar(stat = 'identity', color='black') +
+  geom_hline(yintercept = 0, size=1) +                        
+  labs(x=NULL,y="Rating", title="Proficientcy in R") +                                
+  scale_y_continuous(breaks=seq(2,8,2)) +                    
+  theme_bw() +                                           
+  scale_fill_manual(values = colors, na.value= 'gray50' ) +                        
+  theme(axis.text.x = element_text(angle = 55, hjust = 1, size = 7),  
+        legend.position = 'none') +
+  facet_wrap(~measure)
+
+```
+
+
+For fun let's look at how different how you phrase the comparison R proficiency question effects responses within each individual. For this, I am going to convert the response selections into numerical values (higher meaning greater proficiency). You can see below that changes in comparisons are not in a consistent direction among people. 
+```{r fig.height=6, fig.width=6}
+# make new data frame and relabel measurement
+prof_phrase <- prof_df
+prof_phrase$measure <-  ifelse(prof_df$measure == "r_prof_peers", "UO peers", "outside UO" )
+
+# convert ratings to numeric and make IDs factors
+prof_phrase$rating <- as.numeric(prof_phrase$rating)
+prof_phrase$ID <- as.factor(prof_phrase$ID)
+
+# plot
+ggplot(prof_phrase, aes(measure,rating, group=ID, color=ID)) +
+  geom_line(stat = 'identity',position=position_jitter(w=0, h=.1)) +
+  labs(x=NULL,y="Rating", title="Effect of comparison on proficiency rating") +                                  scale_y_continuous(breaks=seq(1,5,1)) +                   
+  theme_minimal()  +
+  theme(panel.grid.minor=element_blank(), 
+        panel.grid.major.x=element_blank(),
+        legend.position = 'bottom')
+
+```
+
+
+## Expereince with other tools
+
+Finally, let's look at how much experience people have with the other programming languages and command line tools by wrangling the data an plotting each within a single graph (for easy comparison). 
+```{r fig.height=4, fig.width=8}
+# subset data and convert to long format
+other_exp <- exp_df %>% select(-r_experence,-r_prof_peers,-r_prof_outside)
+other_exp_long <- melt(other_exp,id.vars = "ID",variable.name = 'language', value.name = 'response') 
+
+# truncate text to recode variables for clear plotting
+other_exp_long$language <- gsub('_exp','',other_exp_long$language)
+other_exp_long$response <- gsub(" --.*",'',other_exp_long$response)
+
+# compute counts for each language
+other_exp_count <- other_exp_long %>% 
+  group_by(language) %>% 
+  count(response)
+
+# order factor labels 
+other_exp_count$response <- factor(other_exp_count$response, 
+                             levels = c("No experience" ,
+                                        "Little experience",
+                                        "Some experience",
+                                        "More frequent experience",
+                                        "Regular experience"))
+
+other_exp_count$language <- factor(other_exp_count$language, 
+                             levels = c("python",
+                                        "matlab" ,
+                                        "julia",
+                                        "cmdline",
+                                        "shscript"))
+
+# plot
+colors <- brewer.pal(5, 'RdYlGn')
+
+ggplot(other_exp_count,aes(response, n, fill=response)) + 
+  geom_bar(stat = 'identity', color='black') +
+  geom_hline(yintercept = 0, size=1) +                        
+  labs(x=NULL, y="Count", title="Experience with other languages") +                                
+  scale_y_continuous(breaks=seq(1,20,2)) +                    
+  theme_bw() +                                           
+  scale_fill_manual(values = colors, na.value= 'gray50' ) +                        
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),  
+        legend.position = 'none', panel.grid.minor=element_blank()) +
+  facet_wrap(~language, nrow = 1)
+
+
+```
+
+As you will see, there is a variety of experience with the different languages and tools. Here are the take home points and thoughts from this:
+
+* Several people have dabbled in Python but haven't committed.
+* Matlab is more popular than I expected it to be.
+* No one has even tried Julia! (I have only used it a little)
+* I'm surprised relatively infrequent command line and shell scripting usage, but it won't be an issue.
+
+
+## Conclusion
+I hope this helps give some of you a flavor of some of the things we will be doing the first couple of weeks of class. There are many different ways to accomplish the same task in R (and data science in general). My way is likely not the most efficient. For example, I subset data multiple times throughout the script when I could perhaps just do it all in one step. However, doing it this way helps keep things straight for myself and doesn't make the code too disjointed. If you can follow my code and understand what it is doing, then I have accomplished my goal. 
+
+Also, as you can tell, there is a variety of skill levels and interests present in the class. As with all 'methods' classes, this makes it difficult to appeal to everyone at the same time. My hope is that we cover a breadth of topics that should be of interest to most people most of the time.
+
+
+
+
+
+
+
+
+
