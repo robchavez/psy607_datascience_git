@@ -20,7 +20,7 @@ library(wordcloud)
 library(reshape2)
 
 # Set working directory
-dir <- "C:/Users/rober/Documents/GitHub/psy607_datascience_git/Week5_text_processing/"
+dir <- "~/Google Drive/Teaching/PSY_607_data_science/psy607_datascience_git/Week5_text_processing/"
 setwd(dir)
 
 ```
@@ -86,6 +86,8 @@ prez_nostops_filtered %>%
 ##Minihack 2: Visualize the Most Commonly Used Words by Political Party
 
 Use ggplot2 to create a facet-wrapped horizontal (rather than the usual vertical) bar graph that represents the most commonly used words (n > 10) in the inaugural speech from each political party. Remove the label for the X axis. 
+
+** This is the plot that I came up with.**
 ```{r}
 colors <- c("dodgerblue3","yellow3", "firebrick3")
   
@@ -105,6 +107,26 @@ prez_nostops_filtered %>%
        x = NULL, y = 'count') + theme_minimal() +
   coord_flip()
 
+
+```
+
+
+** This is a better plot with modified code from Stephan. **
+```{r}
+prez_nostops_filtered %>%
+  group_by(party) %>% 
+  count(word) %>% 
+  top_n(10,n) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  # plot
+  ggplot(aes(x = word, y = n, fill=party)) + 
+  geom_col(show.legend = FALSE) +
+  scale_fill_manual(values = colors) +
+  facet_wrap(~party, scales = 'free_y') +
+  labs(title = "Most Frequent Words in Innaugural Address by Party",
+       x = NULL, y = 'count') + theme_minimal() +
+  coord_flip()
 
 ```
 

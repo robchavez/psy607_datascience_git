@@ -12,7 +12,7 @@ library(wordcloud)
 library(reshape2)
 
 # Set working directory
-dir <- "C:/Users/rober/Documents/GitHub/psy607_datascience_git/Week5_text_processing/"
+dir <- "~/Google Drive/Teaching/PSY_607_data_science/psy607_datascience_git/Week5_text_processing/"
 setwd(dir)
 ```
 
@@ -73,15 +73,14 @@ head(prez_token)
 
 ```
 ## # A tibble: 6 x 6
-##      X1              Name     `Inaugural Address`                     Date
-##   <int>             <chr>                   <chr>                    <chr>
-## 1     4 George Washington First Inaugural Address Thursday, April 30, 1789
-## 2     4 George Washington First Inaugural Address Thursday, April 30, 1789
-## 3     4 George Washington First Inaugural Address Thursday, April 30, 1789
-## 4     4 George Washington First Inaugural Address Thursday, April 30, 1789
-## 5     4 George Washington First Inaugural Address Thursday, April 30, 1789
-## 6     4 George Washington First Inaugural Address Thursday, April 30, 1789
-## # ... with 2 more variables: party <fctr>, word <chr>
+##      X1 Name              `Inaugural Address`     Date         party word 
+##   <int> <chr>             <chr>                   <chr>        <fct> <chr>
+## 1     4 George Washington First Inaugural Address Thursday, A… other fell…
+## 2     4 George Washington First Inaugural Address Thursday, A… other citi…
+## 3     4 George Washington First Inaugural Address Thursday, A… other of   
+## 4     4 George Washington First Inaugural Address Thursday, A… other the  
+## 5     4 George Washington First Inaugural Address Thursday, A… other sena…
+## 6     4 George Washington First Inaugural Address Thursday, A… other and
 ```
 
 ```r
@@ -91,18 +90,18 @@ prez_token %>% count(word, sort = TRUE)
 
 ```
 ## # A tibble: 4,924 x 2
-##     word     n
+##    word      n
 ##    <chr> <int>
-##  1   the  2519
-##  2    of  1726
-##  3   and  1375
-##  4    to  1208
-##  5    in   738
-##  6   our   618
-##  7     a   578
-##  8    we   494
-##  9  that   462
-## 10    be   429
+##  1 the    2519
+##  2 of     1726
+##  3 and    1375
+##  4 to     1208
+##  5 in      738
+##  6 our     618
+##  7 a       578
+##  8 we      494
+##  9 that    462
+## 10 be      429
 ## # ... with 4,914 more rows
 ```
 
@@ -123,18 +122,18 @@ prez_nostops %>% count(word, sort = TRUE)
 
 ```
 ## # A tibble: 4,442 x 2
-##          word     n
-##         <chr> <int>
+##    word           n
+##    <chr>      <int>
 ##  1 government   154
-##  2     people   151
-##  3       0097   126
-##  4      world    85
-##  5    country    76
-##  6     public    73
-##  7     nation    69
-##  8   citizens    67
-##  9       time    60
-## 10      peace    58
+##  2 people       151
+##  3 0097         126
+##  4 world         85
+##  5 country       76
+##  6 public        73
+##  7 nation        69
+##  8 citizens      67
+##  9 time          60
+## 10 peace         58
 ## # ... with 4,432 more rows
 ```
 
@@ -162,18 +161,18 @@ prez_nostops_customstop %>%
 
 ```
 ## # A tibble: 4,441 x 2
-##          word     n
-##         <chr> <int>
+##    word           n
+##    <chr>      <int>
 ##  1 government   154
-##  2     people   151
-##  3      world    85
-##  4    country    76
-##  5     public    73
-##  6     nation    69
-##  7   citizens    67
-##  8       time    60
-##  9      peace    58
-## 10       free    55
+##  2 people       151
+##  3 world         85
+##  4 country       76
+##  5 public        73
+##  6 nation        69
+##  7 citizens      67
+##  8 time          60
+##  9 peace         58
+## 10 free          55
 ## # ... with 4,431 more rows
 ```
 
@@ -184,24 +183,26 @@ prez_nostops_filtered %>%
 
 ```
 ## # A tibble: 4,437 x 2
-##          word     n
-##         <chr> <int>
+##    word           n
+##    <chr>      <int>
 ##  1 government   154
-##  2     people   151
-##  3      world    85
-##  4    country    76
-##  5     public    73
-##  6     nation    69
-##  7   citizens    67
-##  8       time    60
-##  9      peace    58
-## 10       free    55
+##  2 people       151
+##  3 world         85
+##  4 country       76
+##  5 public        73
+##  6 nation        69
+##  7 citizens      67
+##  8 time          60
+##  9 peace         58
+## 10 free          55
 ## # ... with 4,427 more rows
 ```
 
 ##Minihack 2: Visualize the Most Commonly Used Words by Political Party
 
 Use ggplot2 to create a facet-wrapped horizontal (rather than the usual vertical) bar graph that represents the most commonly used words (n > 10) in the inaugural speech from each political party. Remove the label for the X axis. 
+
+** This is the plot that I came up with.**
 
 ```r
 colors <- c("dodgerblue3","yellow3", "firebrick3")
@@ -224,6 +225,28 @@ prez_nostops_filtered %>%
 ```
 
 ![](Week5_Text_Processing_solutions_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
+
+
+** This is a better plot with modified code from Stephan. **
+
+```r
+prez_nostops_filtered %>%
+  group_by(party) %>% 
+  count(word) %>% 
+  top_n(10,n) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  # plot
+  ggplot(aes(x = word, y = n, fill=party)) + 
+  geom_col(show.legend = FALSE) +
+  scale_fill_manual(values = colors) +
+  facet_wrap(~party, scales = 'free_y') +
+  labs(title = "Most Frequent Words in Innaugural Address by Party",
+       x = NULL, y = 'count') + theme_minimal() +
+  coord_flip()
+```
+
+![](Week5_Text_Processing_solutions_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
 
 ##Minihack 3: Create a Wordcloud
 
@@ -249,7 +272,7 @@ prez_nostops_filtered %>%
 ## reds): world could not be fit on page. It will not be plotted.
 ```
 
-![](Week5_Text_Processing_solutions_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
+![](Week5_Text_Processing_solutions_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
 
 ##Minihack 4: Sentiment Analysis and Visualization
 
@@ -277,9 +300,9 @@ prez_nostops_filtered %>%
 ```
 ## # A tibble: 2 x 2
 ##   sentiment n_sentiment
-##       <chr>       <int>
-## 1  negative          32
-## 2  positive          67
+##   <chr>           <int>
+## 1 negative           32
+## 2 positive           67
 ```
 
 ```r
@@ -298,9 +321,9 @@ prez_nostops_filtered %>%
 ```
 ## # A tibble: 2 x 2
 ##   sentiment n_sentiment
-##       <chr>       <int>
-## 1  negative          71
-## 2  positive          78
+##   <chr>           <int>
+## 1 negative           71
+## 2 positive           78
 ```
 
 ```r
@@ -388,4 +411,4 @@ v <- ggplot(obama_washington, aes(x = reorder(sentiment,prop), y = prop, fill = 
 cowplot::plot_grid(h,v, ncol = 1)
 ```
 
-![](Week5_Text_Processing_solutions_files/figure-html/unnamed-chunk-6-1.png)<!-- -->
+![](Week5_Text_Processing_solutions_files/figure-html/unnamed-chunk-7-1.png)<!-- -->
