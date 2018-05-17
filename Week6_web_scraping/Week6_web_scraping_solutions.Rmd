@@ -1,0 +1,315 @@
+---
+title: "Web Scraping Solutions"
+author: "Curated by Rob Chavez (with code from classmates)"
+date: "May 17, 2018"
+output: 
+  html_document: 
+    highlight: tango
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+---
+
+
+#Minihacks
+```{r warning=FALSE, message=FALSE}
+library(dplyr)
+library(rvest)
+library(ggplot2)
+library(stringr)
+```
+
+##Minihack 1
+
+Navigate to the nfl page that was used in the first example and pull the big plays count for each game. Once you have all of the data, report the mean and the standard deviation.  *If you are feeling ambitious, create a for loop that does this for each week of the season and store each mean and sd in a list.   
+
+**This code was commandeered from Cory.** 
+```{r message=FALSE}
+#Establish the session with the url for the first page  
+link <- html_session("http://www.nfl.com/scores/2017/REG1")
+
+big_play_cnt <- html_nodes(link, ".big-plays-count") %>% 
+  html_text() %>% 
+  as.numeric()
+
+num_weeks <- 17
+
+# creating an empty dataframe to store the weekly data in
+big_play_df <- as.data.frame(cbind(team = NA, big_play_cnt = NA, week =  NA)) %>% 
+  # need this or else you have 1 row of NA's
+  na.omit()
+
+#Create a for loop to iterate through each page and to collect the data on each that you need
+for (i in 1:num_weeks) { 
+  
+  #collect all of the team names for each week
+  team <- link  %>% 
+    #identify the css selector that selects all team names
+    html_nodes(".team-name") %>%  
+    #parse the html into a usable form
+    html_text()
+  
+  #collect all of big play counts
+  big_play_cnt <- html_nodes(link, ".big-plays-count") %>% 
+    html_text() %>% 
+    as.numeric()
+
+  
+  #Create a dataframe that binds togther the team and the total score for each week
+  x <- as.data.frame(cbind(team, big_play_cnt, week = i))
+  big_play_df <- rbind(big_play_df, x)
+  #specify which page to stop on
+  if (i < num_weeks) {
+    #follow the link for the next page with the approprite css selector 
+    link <- link %>%
+      follow_link(css = ".active-week+ li .week-item")
+  }
+}
+
+big_play_df %>% 
+  mutate(big_play_cnt = as.numeric(big_play_cnt)) %>% 
+  group_by(week) %>% 
+  summarize(m_big_plays = mean(big_play_cnt, na.rm = TRUE),
+            sd_big_plays = sd(big_play_cnt, na.rm = TRUE))
+```
+
+
+
+
+##Minihack 2
+
+Go back to the TrustPilot website and look at the reviews.  You’ll notice that there is information on each review about the number of reviews the author has posted on the website (Ex: Joey Perry, 4 reviews).  Write a function that, for a given webpage,  gets the number of reviews each reviewer has made.  
+
+If you are having trouble finding the corresponding CSS tag, ask a classmate!  Note as well that only pulling the number of other reviews will involve some text manipulation to get rid of irrelevant text.
+
+At the end you should have a function that takes an html object as a parameter and returns a numeric vector of length 20.  
+
+**This code was commandeered from Dani. She went a step further and added a column for reviewer in the output.**
+```{r}
+# define function
+nreviews = function(company){
+  # specify web url
+  weburl = sprintf('https://www.trustpilot.com/review/www.%s.com', company)
+  
+  # pull number of reviews on the first page
+  reviews = html_session(weburl) %>%
+    html_nodes('.consumer-info__details__review-count') %>%
+    html_text() %>%
+    str_extract('[0-9]+')
+  
+  # pull reviewer names
+  reviewer = html_session(weburl) %>%
+    html_nodes('.consumer-info__details__name') %>%
+    html_text() %>%
+    str_squish()
+  
+  # return vector with reviewer and number of reviews
+  bind_cols(as.data.frame(reviewer), as.data.frame(reviews))
+}
+
+
+# run function on amazon
+nreviews('amazon')
+
+# facebook
+nreviews('facebook')
+```
+
+
+
+##Minihack 3
+
+The web is a vast ocean of data that is waiting to be scraped. For this hack, be creative. Find a website of your choice and pull some data that you find interesting. Tidy your data and print the head of your dataframe. Perform some simple descriptive statistics and if you’re feeling ambitious create at least one visualization of the trends that you have discovered. There are no limitations to what kind of data you decide to pull (but don’t forget our initial disclaimer!). It can be numbers and it can also be text if you decide that you want to use the skills from the text processing lesson that we covered last week. 
+
+If you don’t know where to start, scraping from imdb.com, espn.go.com, news sites, bestplaces.net,  is sufficient. 
+
+** Here are a couple of example from your classmates that I thought were neat.**
+
+### From Ashley
+This code was commandeered from Ashley. She describes it like this:  
+*"For Minihack 3 I wanted to compare the success of Marvel and DC movies. I scraped data from IMDb (https://www.imdb.com/list/ls065237713/) to obtain actual ratings for each movie, as well as the gross earnings from each movie. I later plotted these trends across time (i.e., the year each movie aired)."*
+
+```{r warning=FALSE, message=FALSE}
+#Establish the session with the url for the first page  
+link2 <- html_session("https://www.imdb.com/list/ls065237713/") 
+
+#collect all of the movie titles
+movie <- link2  %>% 
+  html_nodes(".lister-item-header a") %>%
+  html_text()
+
+#collect year info and clean
+year <- link2  %>% 
+  html_nodes(".text-muted.unbold") %>%
+  html_text()
+
+year <- year[-c(1, 2, 3)] # without fist 3 elements
+
+year[55] <- "(2005)" #gets rid of the random I 
+
+year <- as.numeric(str_sub(year[1:69], 2, 5)) #removes parentheses
+
+#collect the ratings for each movie
+rating <- link2 %>% 
+  html_nodes(".ipl-rating-star.small .ipl-rating-star__rating") %>%  
+  html_text() %>% 
+  as.numeric()
+
+#collect the gross $ for each movie and clean the data
+gross <- link2 %>% 
+  html_nodes(".text-muted .ghost~ .text-muted+ span") %>%  
+  html_text() 
+
+gross[54] <- "$7.95" #removes the last "M"
+
+gross <- as.numeric(str_sub(gross[1:69], 2, 6)) #removes all $'s and all but one M
+
+#determine whether each movie is associated with Marvel or DC
+
+affiliation <- link2 %>% 
+  html_nodes(".mode-detail .list-description p") %>%  
+  html_text() 
+
+#create dataframe
+
+data <- as.data.frame(cbind(movie, affiliation, rating, gross, year), stringsAsFactors = FALSE)
+
+#Marvel movie data
+
+Marvel <- filter(data, str_detect(affiliation, "Marvel"))
+
+Marvel$affiliation <- gsub(" -.*","",Marvel[,2])
+
+
+
+#DC movie data
+
+DC <- filter(data, str_detect(affiliation, "DC"))
+
+DC$affiliation <- gsub(" -.*","",DC[,2])
+
+
+
+#Combined data
+
+Minihack3_data <- rbind(Marvel, DC)
+
+Minihack3_data
+
+
+#plots ----------------------------------------------------------------------
+ Minihack3_data$affiliation <- as.factor(Minihack3_data$affiliation) 
+Minihack3_data$rating <- as.numeric(Minihack3_data$rating) 
+Minihack3_data$gross <- as.numeric(Minihack3_data$gross) 
+Minihack3_data$year <- as.numeric(Minihack3_data$year) 
+
+# data frame for plot A
+overall_ratings <-  Minihack3_data %>%
+  group_by(affiliation) %>%
+  summarise(Mean = mean(rating),
+            se = sd(rating)/(sqrt(n())))
+
+overall_gross <-  Minihack3_data %>%
+  group_by(affiliation) %>%
+  summarise(Mean = mean(gross),
+            se = sd(gross)/(sqrt(n())))
+
+# data frame for plot B
+
+rating_time <-  Minihack3_data %>%
+  group_by(affiliation, year) %>%
+  summarise(Mean = mean(rating),
+            se = sd(rating)/(sqrt(n())))
+
+gross_time <-  Minihack3_data %>%
+  group_by(affiliation, year) %>%
+  summarise(Mean = mean(gross),
+            se = sd(gross)/(sqrt(n())))
+
+# plotA saved to plot object
+ratings_plotA <- ggplot(overall_ratings, aes(x = affiliation, y = Mean, fill = affiliation)) + 
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_fill_manual(values = c("#31AEA6", "#783A9C")) +
+  geom_errorbar(aes(ymin = Mean - se, ymax = Mean + se), width = .2, position = position_dodge(.9)) +
+  labs(x = 'Company', y = 'Mean IMDb Rating Per Movie') +
+  theme(legend.position = "none") 
+  
+gross_plotA <- ggplot(overall_gross, aes(x = affiliation, y = Mean, fill = affiliation)) + 
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_fill_manual(values = c("#A81B56", "#FA7F04")) +
+  geom_errorbar(aes(ymin = Mean - se, ymax = Mean + se), width = .2, position = position_dodge(.9)) +
+  labs(x = 'Company', y = 'Mean Gross Earnings Per Movie in Millions ($)') +
+  theme(legend.position = "none") 
+
+# plotB saved to plot object
+ratings_plotB <- ggplot(rating_time, aes(x = year, y = Mean, color = affiliation)) + 
+  geom_point(size = 2.5) +
+  scale_color_manual(name = "Company",
+                    values = c("#31AEA6", "#783A9C")) + 
+  labs(x = 'Year', y = 'Mean IMDb Rating Per Movie') +
+   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+gross_plotB <- ggplot(gross_time, aes(x = year, y = Mean, color = affiliation)) + 
+  geom_point(size = 2.5) +
+  scale_color_manual(name = "Company",
+                    values = c("#A81B56", "#FA7F04")) + 
+  labs(x = 'Year', y = 'Mean Gross Earnings Per Movie in Millions ($)') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+# combined plot
+library(cowplot)
+ratings_combined <- plot_grid(ratings_plotA, ratings_plotB, labels = c("A", "B"))
+
+ratings_combined
+
+gross_combined <- plot_grid(gross_plotA, gross_plotB, labels = c("A", "B"))
+
+gross_combined
+
+```
+
+### From Bradley
+This code was commandeered from Bradley. He describes it like this:  
+*"I scraped year by year team pitching data from a baseball statistics website, baseball-reference.com. I then looked at the relationship between ERA and homeruns and wins for each team within the Al East. I ran a multilevel model that showed the importance of ERA and HR in predicting wins, but that the effect of these predictors depended on the team."*
+
+```{r warning=FALSE, message=FALSE}
+
+
+#I created a function to scrape the Wins, ERA, HR, and Year for a given team from 1969 until 2017.
+team_stats <- function(team){
+  url <- read_html(paste0("https://www.baseball-reference.com/teams/", team, "/pitchteam.shtml#all_yby_team_pitch"))
+    nodes <- html_nodes(url, 'table')
+    table <- html_table(nodes)
+    df <- as.data.frame(table)
+    df <- df %>% filter(Year >= 1969, Year < 2018) %>% select(Year, W, ERA, HR)
+    df$team <- rep(team, nrow(df))
+    return(df)
+}
+
+# LMM ---------------------------------------
+bal <- team_stats("BAL")
+nyy <- team_stats("NYY")
+bos <- team_stats("BOS")
+tor <- team_stats("TOR")
+
+al_east <- rbind(bal, nyy, bos, tor)
+library(lmerTest)
+
+library(lme4)
+mod <- lmer(W ~ ERA*HR + (1|team), data = al_east)
+summary(mod)
+
+# plots-------------------------------------------------------
+ggplot(al_east, aes(y = W, x = ERA, color = team)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F)+
+  labs(x = "Earned Run Average", y = "Wins", title = "Wins and ERA by Team") + theme_gray()
+
+
+ggplot(al_east, aes(y = W, x = HR, color = team)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  labs(x = "Homeruns", y = "Wins", title = "Wins and Homeruns by Team") + theme_gray()
+
+```
+
